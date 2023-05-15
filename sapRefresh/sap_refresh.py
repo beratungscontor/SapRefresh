@@ -25,14 +25,15 @@ from sapRefresh.Refresh import Sap
 # configure the log object
 import logging
 from sapRefresh.Core.base_logger import get_logger
-from sapRefresh import LOG_PATH, global_configs_df, CONFIG_PATH  # import info from the __init__ file
-logger, LOG_FILEPATH = get_logger(__name__, LOG_PATH)
+from sapRefresh import global_configs_df  # import info from the __init__ file
+logger = get_logger(__name__, os.environ.get('LOG_PATH'))
 
 
 @retry(reraise=True, wait=wait_fixed(10), before_sleep=before_sleep_log(logger, logging.DEBUG), stop=stop_after_attempt(3))
 @timeit
 def get_configurations(config_path):
     """get all necessary dataframes to serve the SapRefresh class"""
+
     global_configs = pd.read_excel(config_path, sheet_name='global_configs')
     data_sources = pd.read_excel(config_path, sheet_name='data_sources')
     variables_filters = pd.read_excel(config_path, sheet_name='variables_filters')
@@ -321,8 +322,8 @@ def refresh_report(filename, data_sources, variables_filters):
     # save and close the report
     SapReport.close()
     # send email
-    mail_msg = f'Relatorio atualizado -> {str(file_target)}'
-    Conn.send_email(mail_msg, 'SUCCESS', 'SAP Refresh - Refresh Reports')
+    mail_msg = f'Workbooks are refreshed -> {str(file_target)}'
+    #Conn.send_email(mail_msg, 'SUCCESS', 'SAP Refresh - Refresh Reports')
 
 
 def collect_information():
@@ -339,7 +340,7 @@ def collect_information():
 
 def refresh_auto_reports():
     """function to automate the refresh of reports based on the parameters set in config file"""
-    _, data_sources, variables_filters = get_configurations(CONFIG_PATH)
+    _, data_sources, variables_filters = get_configurations(os.environ.get('CONFIG_PATH'))
     # change the dynamic days in the sources
     today = date.today().day
     data_sources['refresh'] = data_sources['refresh'].apply(lambda x: 'Y' if x >= today or x == 99 else 'N')
@@ -356,7 +357,7 @@ if __name__ == '__main__':
         logger.info("The Workbook refresh was done successfully!")
     except Exception as e:
         # send error to the logger
-        logger.critical(f"Couldn't refresh the data. ({e.args[0]} | {e.args[1]})")
+        logger.critical(f"Couldn't refresh the data. ({' | '.join(str(item) for item in e.args)})")
         # send error by email
-        msg_mail = f"Couldn't refresh the data. ({e.args[0]} | {e.args[1]})"
-        Conn.send_email(msg_mail, 'ERROR', 'SAP Refresh')
+        msg_mail = f"Couldn't refresh the data. ({' | '.join(str(item) for item in e.args)})"
+        #Conn.send_email(msg_mail, 'ERROR', 'SAP Refresh')

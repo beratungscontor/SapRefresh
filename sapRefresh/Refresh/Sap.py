@@ -4,6 +4,7 @@ Created on 3/8/2021
 Author: Arnold Souza
 Email: arnoldporto@gmail.com
 """
+import os
 from tenacity import retry, wait_fixed, before_sleep_log, stop_after_attempt
 
 from sapRefresh.Core.Cripto import secret_decode
@@ -11,8 +12,7 @@ from sapRefresh.Core.Time import timeit
 
 import logging
 from sapRefresh.Core.base_logger import get_logger
-from sapRefresh import LOG_PATH
-logger, LOG_FILEPATH = get_logger(__name__, LOG_PATH)
+logger = get_logger(__name__, os.environ.get('LOG_PATH'))
 
 
 @retry(reraise=True, wait=wait_fixed(10), before_sleep=before_sleep_log(logger, logging.DEBUG), stop=stop_after_attempt(3))
@@ -52,7 +52,7 @@ def sap_refresh_data(xl_Instance, source):
     if result == 1:
         print(f'\nSuccessfully refreshed the source: {source}')
     else:
-        raise ConnectionError(f"Couldn't refresh the the source: {source}")
+        raise ConnectionError(f"Couldn't refresh the source: {source}")
     return result
 
 

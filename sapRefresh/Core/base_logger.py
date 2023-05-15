@@ -4,6 +4,7 @@ Created on 3/14/2021
 Author: Arnold Souza
 Email: arnoldporto@gmail.com
 """
+import os
 import sys
 import logging
 from logging.handlers import TimedRotatingFileHandler
@@ -27,13 +28,14 @@ def get_logger(logger_name, log_path):
 
     # set up file logger
     log_filename = datetime.now().strftime("%Y%m%d")
-    location = log_path / f'{log_filename}.log'  # create a path do the log
+    location = log_path + f'\\{log_filename}.log'  # create a path do the log
     logfile_handler = TimedRotatingFileHandler(location, when='D', interval=1, backupCount=30)
     logfile_handler.setLevel(logging.INFO)  # do not print DEBUG messages to file
     logfile_handler.setFormatter(logFormatter)
     logger.addHandler(logfile_handler)
 
-    return logger, location
+    os.environ['LOG_FILEPATH'] = location
+    return logger
 
 # Log some messages
 # logger.debug("Debug message")

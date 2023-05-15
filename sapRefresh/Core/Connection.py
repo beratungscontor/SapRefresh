@@ -5,7 +5,7 @@ Author: Arnold Souza
 Email: arnoldporto@gmail.com
 """
 import socket
-from os import listdir
+import os
 from os.path import isfile, join
 from pathlib import Path
 import configparser
@@ -17,10 +17,10 @@ from datetime import datetime
 from tenacity import retry, wait_fixed, before_sleep_log, stop_after_attempt
 
 import logging
-from Core.Cripto import secret_decode
+from sapRefresh.Core.Cripto import secret_decode
 from sapRefresh.Core.base_logger import get_logger
-from sapRefresh import LOG_PATH, global_configs_df
-logger, LOG_FILEPATH = get_logger(__name__, LOG_PATH)
+from sapRefresh import global_configs_df
+logger = get_logger(__name__, os.environ.get('LOG_PATH'))
 
 
 def get_config_values(config_file='app_config.ini'):
@@ -60,7 +60,7 @@ def check_connection(host, port, timeout=3):
 
 def search_directory(data_directory):
     """search the directory for excel files to be refreshed"""
-    onlyfiles = [f for f in listdir(data_directory) if isfile(join(data_directory, f))]
+    onlyfiles = [f for f in os.listdir(data_directory) if isfile(join(data_directory, f))]
     list_files = []
     for filename in onlyfiles:
         if filename[-4:].lower() == 'xlsx':
@@ -71,7 +71,7 @@ def search_directory(data_directory):
 def send_email(message_string, status_string, process_string):  #filepath_string, log_path_string, status_string, process_string):
     """Function to send communications via email"""
     # calculated fields
-    log_path_string = str(LOG_FILEPATH)
+    log_path_string = str(os.environ.get('LOG_FILEPATH'))
     datetime_string = datetime.now().strftime("%d/%m/%Y, %H:%M:%S")
     subject_string = f'PYTHON AUTOMATE ({status_string}) - [{process_string}] - {datetime_string}'
     # email configurations
@@ -82,16 +82,15 @@ def send_email(message_string, status_string, process_string):  #filepath_string
     receiver_email = (global_configs_df.query('description=="mail-to"')['value'].values[0]).split(',')
     # elaborate the email message
     msg_email = f"""\
-    Ola,
+    Hello,
 
-    Segue o status do processo [{process_string}]:
+    Here is the status of the process [{process_string}]:
 
         STATUS: {status_string}
-        DATA / HORA: {datetime_string}
-        MENSAGEM: {message_string}
-        DIRETORIO LOG: {log_path_string}
+        DATE / TIME: {datetime_string}
+        MESSAGE: {message_string}
+        LOG PATH: {log_path_string}
 
-    @2021 GBS Latam - Hydro
     """
     # construct email message
     message = MIMEText(msg_email)
@@ -109,10 +108,3 @@ def send_email(message_string, status_string, process_string):  #filepath_string
     # Statement to send email
     server.sendmail(sender_email, receiver_email, message.as_string())
     server.quit()
-
-
-if __name__ == '__main__':
-    filepath_str = r'C:\teste\alguma_pasta\algum_arquivo.xlsx'
-    status_str = 'SUCCESS'
-    process_str = 'SAP Refresh'
-    send_email(filepath_str, status_str, process_str)

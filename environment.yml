@@ -1,0 +1,27 @@
+name: sapRefresh
+channels:
+  - defaults
+dependencies:
+  - python=3.9
+  - cffi
+  - colorama
+  - cryptography
+  - et-xmlfile
+  - halo
+  - log-symbols
+  - numpy
+  - openpyxl
+  - pandas
+  - psutil
+  - pycparser
+  - python-dateutil
+  - pytz
+  - pywin32
+  - pyyaml
+  - six
+  - spinners
+  - tenacity
+  - termcolor
+  - tzdata
+  - requests
+  - XlsxWriter

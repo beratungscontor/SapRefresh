@@ -4,6 +4,7 @@ Created on 3/8/2021
 Author: Arnold Souza
 Email: arnoldporto@gmail.com
 """
+import os
 import win32com.client as win32
 from win32com.client import constants as cst
 
@@ -14,8 +15,7 @@ from sapRefresh.Core.Time import timeit
 
 import logging
 from sapRefresh.Core.base_logger import get_logger
-from sapRefresh import LOG_PATH
-logger, LOG_FILEPATH = get_logger(__name__, LOG_PATH)
+logger = get_logger(__name__, os.environ.get('LOG_PATH'))
 
 
 def kill_excel_instances():
@@ -53,7 +53,8 @@ def open_workbook(xl_Instance, path):
 @timeit
 def ensure_addin(xl_Instance):
     """In order to kill Excel popup we can hit enter"""
-    shell = win32.client.Dispatch("WScript.Shell")
+
+    shell = win32.Dispatch("WScript.Shell")
     shell.SendKeys("{ENTER}")
     """Force the plugin to be enabled in the instance of Excel"""
     for addin in xl_Instance.Application.COMAddIns:

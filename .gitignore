@@ -1,7 +1,21 @@
-/sapRefresh/Logs/*
-/sapRefresh/Workbooks/*
-/sapRefresh/app_config.ini
-/.idea/
-/References/
-/sapRefresh/tests.ipynb
-/sapRefresh/.ipynb_checkpoints/tests-checkpoint.ipynb
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+dist/
+build/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.pydevproject
+
+# Sonstiges
+.DS_Store

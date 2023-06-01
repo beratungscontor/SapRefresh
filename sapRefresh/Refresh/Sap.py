@@ -28,6 +28,21 @@ def sap_logon(xl_Instance, source, client, user, password):
 
 
 @timeit
+def add_message_supression(xl_Instance):
+
+    # VBA-Code ausführen
+    vba_code = """
+    Sub MyMacro()
+        ' Hier kannst du deinen VBA-Code implementieren
+        MsgBox "Hallo von VBA!"
+    End Sub
+    """
+    xl_Instance.VBE.ActiveVBProject.VBComponents("callbacks").CodeModule.AddFromString(vba_code)
+
+    xl_Instance.Application.Run("SAPExecuteCommand", "RegisterCallback", "BeforeMessageDisplay", "callbacks.MyMacro")
+
+
+@timeit
 def sap_refresh(xl_Instance):
     """
     Do there initial refresh of data in the workbook.
@@ -43,12 +58,12 @@ def sap_refresh(xl_Instance):
 
 
 @timeit
-def sap_refresh_data(xl_Instance, source):
+def sap_refresh_data(xl_Instance, source=None):
     """
     Refresh the transaction data for all or defined data sources in the workbook.
     The corresponding transaction data is updated from the server and the crosstabs are redrawn.
     """
-    result = xl_Instance.Application.Run("SAPExecuteCommand", "RefreshData", source)
+    result = xl_Instance.Application.Run("SAPExecuteCommand", "RefreshData", source if not source == None else "ALL")
     if result == 1:
         print(f'\nSuccessfully refreshed the source: {source}')
     else:

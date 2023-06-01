@@ -47,8 +47,8 @@ class SapRefresh:
         # global configuration dataframe
         self.global_configs = config_df
         # file related parameter. Need to be set only when a workbook is loaded
-        self.data_source = None  # dictionary with all infos about the data source
-        self.source = None  # the name of the data source that was loaded (usually DS_1)
+        self.data_sources = pd.DataFrame()  # dataframe with all infos about the data sources
+        #self.source = None  # the name of the data source that was loaded (usually DS_1)
         self.filepath = None  # the filepath of the SAP AfO file
         # Classes of Excel API
         self.ExcelInstance = None
@@ -62,7 +62,7 @@ class SapRefresh:
         self.state_refresh_behavior = None
         self.state_variable_submit = None
         # List of all variables and filters in the data source
-        self.variables_filters = None
+        self.variables_filters = pd.DataFrame() # dataframe with all infos about the variables and filters
 
     def open_report(self, filepath):
         """
@@ -93,13 +93,13 @@ class SapRefresh:
         """Calculate workbook to refresh values"""
         self.ExcelInstance.Application.Calculate()
 
-    def get_data_source(self):
+    def get_data_sources(self):
         """get data information about SAP AfO objects in a workbook"""
-        self.data_source = Xl.get_data_source(self.ExcelInstance)
-        self.source = self.data_source['DS']  # set source to a property for the easy access it
-        print('\n', 'data source retrieved', '\n', self.data_source)
+        self.data_sources = Xl.get_data_sources(self.ExcelInstance)
+        #self.source = self.data_source['DS']  # set source to a property for the easy access it
+        print('\n', 'data source retrieved', '\n', self.data_sources)
 
-    def logon(self, source=None):
+    def logon(self, source):
         """
         Logon into the SAP AfO System. The logon is file dependent. That's because you need to refer the
         data source to connect to SAP. It uses the source of the get_data_source method.
@@ -108,26 +108,27 @@ class SapRefresh:
         client = self.global_configs.query('description=="logon-client"')['value'].values[0]
         user = self.global_configs.query('description=="logon-user"')['value'].values[0]
         password = self.global_configs.query('description=="logon-password"')['value'].values[0]
-        if source is not None:
-            self.source = source
         # execute the logon method
-        self.is_logged = Sap.sap_logon(self.ExcelInstance, self.source, client, user, password)
+        #Sap.add_message_supression(self.ExcelInstance)
+        self.is_logged = Sap.sap_logon(self.ExcelInstance, source, client, user, password)
+
 
     def refresh(self):
         """Do there initial refresh of data in the workbook."""
         self.is_refreshed = Sap.sap_refresh(self.ExcelInstance)
 
-    def refresh_data(self):
+    def refresh_data(self, data_source=None):
         """Refresh the transaction data for all data sources in the workbook."""
-        self.is_refreshed_data = Sap.sap_refresh_data(self.ExcelInstance, self.data_source)
+        self.is_refreshed_data = Sap.sap_refresh_data(self.ExcelInstance, data_source)
 
-    def additional_source_info(self):
+    def additional_source_info(self, data_source):
         """
         Query more information and append it to the data source dictionary.
         Attention. This method is dependent of Data Source initiation.
         """
-        self.data_source = Sap.sap_get_more_info(self.ExcelInstance, self.data_source)
-        print('Additional data source information retrieved', '\n', self.data_source)
+        data_source = Sap.sap_get_more_info(self.ExcelInstance, data_source)
+        print('Additional data source information retrieved', '\n', data_source)
+        return data_source
 
     @timeit
     def close(self):
@@ -146,30 +147,30 @@ class SapRefresh:
         self.ExcelInstance = None
         print('The application was Successfully closed')
 
-    def get_variables_list(self):
+    def get_variables_list(self, source):
         """Return a dictionary of the variables that exists in the data source"""
-        variables_list = Sap.sap_get_variables(self.ExcelInstance, self.source)
+        variables_list = Sap.sap_get_variables(self.ExcelInstance, source)
         return variables_list
 
-    def variables_filters_list(self):
+    def variables_filters_list(self, data_source):
         """Return a dataframe with all the variables and filters inside the datasource"""
         # get the list of variables
-        variables_list = Sap.sap_get_variables(self.ExcelInstance, self.source)
+        variables_list = Sap.sap_get_variables(self.ExcelInstance, data_source['DS'])
         # get technical name of the variables and append to Restrictions list
         restrictions = []
         for variable in variables_list:
             restrictions.append(
                 {
                     'command': 'SAPSetVariable',
-                    'field': Sap.sap_get_technical_name(self.ExcelInstance, self.source, variable[0]),
+                    'field': Sap.sap_get_technical_name(self.ExcelInstance, data_source['DS'], variable[0]),
                     'field_name': variable[0],
                     'value': variable[1]
                 }
             )
         # get the list of filters (measures)
-        filters_list = Sap.sap_get_filters(self.ExcelInstance, self.source)
+        filters_list = Sap.sap_get_filters(self.ExcelInstance, data_source['DS'])
         # get list of dimensions (fields)
-        dimensions_list = Sap.sap_get_dimensions(self.ExcelInstance, self.source)
+        dimensions_list = Sap.sap_get_dimensions(self.ExcelInstance, data_source['DS'])
         # search in dimensions the technical name of each filter then append values to Restrictions list
         for filter_ in filters_list:
             if filter_[0] != 'Measures':
@@ -184,18 +185,18 @@ class SapRefresh:
         # create the dataframe with filters and variables
         # noinspection PyTypeChecker
         variables_filters = pd.DataFrame.from_dict(restrictions)
-        variables_filters['data_source'] = self.source
+        variables_filters['data_source'] = data_source['DS']
         variables_filters['reference_type'] = 'value'
-        variables_filters['data_source_name'] = self.data_source['DataSourceName']
-        variables_filters['data_source_sheet'] = self.data_source['Sheet']
+        variables_filters['data_source_name'] = data_source['DataSourceName']
+        variables_filters['data_source_sheet'] = data_source['Sheet']
         # assign values to properties
-        self.variables_filters = variables_filters
+        self.variables_filters = variables_filters.append(self.variables_filters, ignore_index=True)
         return variables_filters
 
-    def data_source_list(self):
-        """Return a Df with data source information"""
-        data_source = pd.DataFrame(list(self.data_source.items()), columns=['Key', 'Value'])
-        return data_source
+    # def data_source_list(self):
+    #     """Return a Df with data source information"""
+    #     data_source = pd.DataFrame(list(self.data_sources.items()), columns=['Key', 'Value'])
+    #     return data_source
 
     @timeit
     def export_variables_filters(self):
@@ -210,15 +211,18 @@ class SapRefresh:
         new_name = pathlib.Path(name_file + complement + file_extension)
         new_filepath = path_data_info / new_name
         # assign dataframes
-        data_source_info = self.data_source_list()
-        variables_filters_info = self.variables_filters_list()
+        data_source_infos = self.data_sources
+        variables_filters_infos = pd.DataFrame()
+        for data_source in self.data_sources.iterrows():
+            variables_filters_info = self.variables_filters_list(data_source)
+            variables_filters_infos = variables_filters_infos.append(variables_filters_info, ignore_index=True)
         # Create a Pandas Excel writer using XlsxWriter as the engine.
         writer = pd.ExcelWriter(new_filepath, engine='xlsxwriter')
         # write the dataframes
-        data_source_info.to_excel(writer, sheet_name='data_source_info')
-        variables_filters_info.to_excel(writer, sheet_name='variables_filters_info')
-        # Close the Pandas Excel writer and output the Excel file.
-        writer.save()
+        data_source_infos.to_excel(writer, sheet_name='data_source_infos')
+        variables_filters_infos.to_excel(writer, sheet_name='variables_filters_infos')
+        # Save Excel-File
+        writer.close()
 
     def is_ds_active(self):
         """check whether a data source is active"""
@@ -284,10 +288,13 @@ def get_report_information(filepath):
     SapReport.open_report(filepath)
     SapReport.calculate()
     # logon and get information from data source
-    SapReport.get_data_source()
-    SapReport.logon()
-    SapReport.refresh()
-    SapReport.additional_source_info()
+    SapReport.get_data_sources()
+    for index, data_source in SapReport.data_sources.iterrows():
+        SapReport.logon(data_source['DS'])
+        #SapReport.refresh()
+        data_source = SapReport.additional_source_info(data_source)
+        SapReport.data_sources[index] = data_source
+    
     # export variables and filters to an Excel file
     SapReport.export_variables_filters()
     SapReport.close()
@@ -304,25 +311,26 @@ def refresh_report(filename, data_sources, variables_filters):
     SapReport.open_report(file_target)
     SapReport.calculate()
     # collect data sources
-    current_source = data_sources.query(f'filename=="{filename}"')['data_source'].values[0]
-    # logging on
-    SapReport.logon(current_source)
-    # do initial data refresh
-    SapReport.refresh_data()
-    # replace dynamic values in the parameters
-    dict_time_values = get_time_intelligence()
-    # start to deal with filters
-    df_filters = variables_filters.query(f'filename=="{filename}" and command=="SAPSetFilter"').replace({"value": dict_time_values})
-    if not df_filters.empty:
-        SapReport.set_refresh_filters(df_filters)
-    # start to deal with variables
-    df_variables = variables_filters.query(f'filename=="{filename}" and command=="SAPSetVariable"').replace({"value": dict_time_values})
-    if not df_variables.empty:
-        SapReport.set_refresh_variables(df_variables)
+    #current_source = data_sources.query(f'filename=="{filename}"')['data_source'].values[0]
+    for index, data_source in data_sources.query(f'filename=="{filename}"').iterrows():
+        #  logging on
+        SapReport.logon(data_source['data_source'])
+        # do initial data refresh
+        SapReport.refresh_data()
+        # replace dynamic values in the parameters
+        dict_time_values = get_time_intelligence()
+        # start to deal with filters
+        df_filters = variables_filters.query(f'filename=="{filename}" and command=="SAPSetFilter"').replace({"value": dict_time_values})
+        if not df_filters.empty:
+            SapReport.set_refresh_filters(df_filters)
+        # start to deal with variables
+        df_variables = variables_filters.query(f'filename=="{filename}" and command=="SAPSetVariable"').replace({"value": dict_time_values})
+        if not df_variables.empty:
+            SapReport.set_refresh_variables(df_variables)
     # save and close the report
     SapReport.close()
     # send email
-    mail_msg = f'Workbooks are refreshed -> {str(file_target)}'
+    #mail_msg = f'Workbooks are refreshed -> {str(file_target)}'
     #Conn.send_email(mail_msg, 'SUCCESS', 'SAP Refresh - Refresh Reports')
 
 

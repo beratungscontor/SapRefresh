@@ -7,11 +7,15 @@ Email: arnoldporto@gmail.com
 import os
 import win32com.client as win32
 from win32com.client import constants as cst
+import win32gui
+import win32con
 
 from tenacity import retry, wait_fixed, before_sleep_log, stop_after_attempt
 import psutil as psutil
 
 from sapRefresh.Core.Time import timeit
+
+import pandas as pd
 
 import logging
 from sapRefresh.Core.base_logger import get_logger
@@ -54,8 +58,8 @@ def open_workbook(xl_Instance, path):
 def ensure_addin(xl_Instance):
     """In order to kill Excel popup we can hit enter"""
 
-    shell = win32.Dispatch("WScript.Shell")
-    shell.SendKeys("{ENTER}")
+    #shell = win32.Dispatch("WScript.Shell")
+    #shell.SendKeys("{ENTER}")
     """Force the plugin to be enabled in the instance of Excel"""
     for addin in xl_Instance.Application.COMAddIns:
         if addin.progID == 'SapExcelAddIn':
@@ -83,7 +87,7 @@ def optimize_instance(xl_Instance, action):
     if action == 'start':
         xl_Instance.Visible = True
         xl_Instance.DisplayAlerts = False
-        xl_Instance.ScreenUpdating = False
+        #xl_Instance.ScreenUpdating = False
         # xl_Instance.EnableEvents = False  # todo: check in reference code if this statement cause negative behavior in the script before uncomment it
     elif action == 'stop':
         xl_Instance.DisplayAlerts = True
@@ -103,21 +107,34 @@ def calculation_state(xl_Instance, action, state=None):
     return state
 
 
-def get_data_source(xl_Instance):
+def tuple_to_dataframe(keys, values):
+    """
+    Converts a tuple of tuples into a DataFrame.
+
+    Args:
+        keys (tuple): Tuple of keys for the DataFrame.
+        values (tuple): Tuple of tuples with the values for the DataFrame.
+
+    Returns:
+        pandas.DataFrame: The generated DataFrame.
+    """
+    data = [dict(zip(keys, item)) for item in values]
+    df = pd.DataFrame(data)
+    return df
+
+
+def get_data_sources(xl_Instance):
     """get data information about SAP AfO objects"""
-    values = dict()
     try:
-        (
-            values['CrossTabSource'],
-            values['CrossTabName'],
-            values['DS']
-        ) = xl_Instance.Application.Run("SAPListOf", "CROSSTABS")
+        df_values = xl_Instance.Application.Run("SAPListOf", "CROSSTABS")
+        values = tuple_to_dataframe(('CrossTabSource','CrossTabName','DS'), df_values)
     except BaseException as e:  # to catch pywintypes.error
         if e.args[0] == -2147352567:
             RuntimeError("The script couldn't access SAP AfO VBA functions. This usually is related to Excel instances running uncontrolled in the OS.")
         else:
             raise e
-    values['Sheet'] = xl_Instance.ActiveWorkbook.Names("SAP" + values['CrossTabSource']).RefersToRange.Parent.Name
+    
+    values['Sheet'] = [xl_Instance.ActiveWorkbook.Names("SAP" + element).RefersToRange.Parent.Name for element in values['CrossTabSource']]   
     values['Crosstab'] = "SAP" + values['CrossTabSource']
     return values
 
@@ -126,3 +143,10 @@ def close_workbook(wb_Instance):
     """Save the file and close it"""
     wb_Instance.Save()
     wb_Instance.Close()
+
+
+def callback(hwnd, extra):
+    if win32gui.GetWindowText(hwnd) == "Popup-Fenstertitel":
+        # Hier kannst du den Code ausführen, um auf das Popup zu reagieren
+        print("Popup-Fenster gefunden!")
+        win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
